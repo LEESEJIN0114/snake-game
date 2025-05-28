@@ -1,55 +1,65 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>스네이크 게임</title>
-<style>
-  body, html {
-    margin:0; padding:0; height:100vh; background:#000;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    user-select:none;
-  }
-  #gameBox {
-    position: relative;
-    width: 360px;  /* 기존 480px에서 더 작게 */
-    height: 360px;
-    overflow:hidden; background:#000;
-  }
-  video#bgVideo {
-    position:absolute; top:0; left:0; width:100%; height:100%;
-    object-fit:cover; z-index:0;
-  }
-  canvas {
-    position:relative; z-index:1; background:transparent;
-  }
-  #controls {
-    margin-top: 10px;
-    display: grid;
-    grid-template-columns: repeat(2, 60px);
-    grid-template-rows: repeat(2, 60px);
-    gap: 10px;
-    justify-content: center;
-  }
-  #controls button {
-    font-size: 2rem;
-    background: #fff;
-    color: #000;
-    border: 2px solid #000;
-    border-radius: 4px;
-    user-select: none;
-    touch-action: manipulation;
-  }
-  @media (min-width:700px){
-    #controls{display:none;}
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>스네이크 게임</title>
+  <style>
+    body, html {
+      margin: 0; padding: 0; height: 100vh;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    #gameBox {
+      position: relative;
+      width: 360px;
+      height: 360px;
+      overflow: hidden;
+      background: #000;
+    }
+    video#bgVideo {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      z-index: 0;
+    }
+    canvas {
+      position: relative;
+      z-index: 1;
+      background: transparent;
+    }
+    #controls {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, 60px);
+      grid-template-rows: repeat(2, 60px);
+      gap: 10px;
+      justify-content: center;
+    }
+    #controls button {
+      font-size: 2rem;
+      background: #fff;
+      color: #000;
+      border: 2px solid #000;
+      border-radius: 4px;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    @media (min-width: 700px) {
+      #controls { display: none; }
+    }
+  </style>
 </head>
 <body>
 
 <div id="gameBox">
   <video id="bgVideo" autoplay muted loop playsinline>
-    <source src="background.mp4" type="video/mp4">
+    <source src="background.mp4" type="video/mp4" />
   </video>
   <canvas id="gameCanvas" width="360" height="360"></canvas>
 </div>
@@ -65,7 +75,8 @@
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const block = 18;  // canvas 360 / 20블록 = 18 (480/24=20 했던 것처럼 비율 유지)
+  const isMobile = window.matchMedia('(max-width:699px)').matches;
+  const block = isMobile ? 18 : 24;
   const w = canvas.width / block;
   const h = canvas.height / block;
 
@@ -76,12 +87,10 @@
 
   let snake, food;
   let currentDir = null;
-  let isMobile = window.matchMedia('(max-width:699px)').matches;
   let mobileDir = null;
-
-  let isKeyPressed = false;  // 방향키 눌림 상태 플래그
+  let isKeyPressed = false;
   let audioUnlocked = false;
-  let hasCollided = false;    // 벽 충돌 여부 플래그
+  let hasCollided = false;
 
   function unlockAudioContext() {
     if (audioUnlocked) return;
@@ -99,73 +108,63 @@
       console.warn('오디오 컨텍스트 언락 실패:', e);
     }
   }
-  window.addEventListener('keydown', unlockAudioContext, {once:true});
-  window.addEventListener('click', unlockAudioContext, {once:true});
-  window.addEventListener('touchstart', unlockAudioContext, {once:true});
+  window.addEventListener('keydown', unlockAudioContext, { once: true });
+  window.addEventListener('click', unlockAudioContext, { once: true });
+  window.addEventListener('touchstart', unlockAudioContext, { once: true });
 
-  function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-
-  // 배경음악 Audio 객체 (mp3)
   const bgSound = new Audio('background-music.mp3');
   bgSound.volume = 0.3;
-  bgSound.loop = false; // 반복재생 안 함
-  bgSound.muted = false; // 초기 음소거 해제 상태
+  bgSound.loop = false;
+  bgSound.muted = false;
 
-  // 배경음 재생 (첫 방향키, 벽 충돌 후 방향키 누름 시만 1회 재생)
-  function playBackgroundSoundOnce() {
-    if (!audioUnlocked) return;
-    if (bgSound.paused === false) return; // 이미 재생 중이면 중복 재생 금지
-
-    // 벽 충돌 후 첫 방향키 누르기 전까지는 무조건 음소거 상태 유지
-    if (hasCollided) {
-      // 첫 방향키 누를 때 음소거 해제하고 재생 가능
-      bgSound.muted = false;
-    }
-
-    bgSound.currentTime = 0;
-    bgSound.play().catch(()=>{});
+  function rand(a, b) {
+    return Math.floor(Math.random() * (b - a + 1)) + a;
   }
 
-  // 먹이 먹을 때마다 효과음 재생 (항상 가능)
+  function playBackgroundSoundOnce() {
+    if (!audioUnlocked || !bgSound.paused) return;
+    if (hasCollided) bgSound.muted = false;
+    bgSound.currentTime = 0;
+    bgSound.play().catch(() => {});
+  }
+
   function playEatSound() {
     if (!audioUnlocked) return;
     const a = new Audio('background-music.mp3');
     a.volume = 0.3;
-    a.play().catch(()=>{});
+    a.play().catch(() => {});
   }
 
-  // 벽 충돌 시 배경음 정지, 충돌 플래그 true로 설정, 음소거 상태로 변경
   function resetBackgroundSound() {
     bgSound.pause();
     bgSound.currentTime = 0;
     hasCollided = true;
-    bgSound.muted = true;  // 벽 충돌 시 무조건 음소거 상태로
+    bgSound.muted = true;
   }
 
-  function init(){
-    snake = [{x: Math.floor(w/2), y: Math.floor(h/2)}];
-    food = {x: rand(0,w-1), y: rand(0,h-1)};
+  function init() {
+    snake = [{ x: Math.floor(w / 2), y: Math.floor(h / 2) }];
+    food = { x: rand(0, w - 1), y: rand(0, h - 1) };
     currentDir = null;
     mobileDir = null;
     isKeyPressed = false;
-    // 벽 충돌 상태 유지(음소거 유지)
   }
 
-  function getDir(){
+  function getDir() {
     return isMobile ? mobileDir : currentDir;
   }
 
-  function moveSnake(){
+  function moveSnake() {
     const dir = getDir();
-    if(!dir) return;
+    if (!dir) return;
 
-    const head = {...snake[0]};
-    if(dir==='left') head.x--;
-    else if(dir==='right') head.x++;
-    else if(dir==='up') head.y--;
-    else if(dir==='down') head.y++;
+    const head = { ...snake[0] };
+    if (dir === 'left') head.x--;
+    else if (dir === 'right') head.x++;
+    else if (dir === 'up') head.y--;
+    else if (dir === 'down') head.y++;
 
-    if(head.x<0 || head.x>=w || head.y<0 || head.y>=h || snake.some(s=> s.x===head.x && s.y===head.y)){
+    if (head.x < 0 || head.x >= w || head.y < 0 || head.y >= h || snake.some(s => s.x === head.x && s.y === head.y)) {
       alert('벽에 부딪혔습니다! 게임을 다시 시작합니다.');
       resetBackgroundSound();
       init();
@@ -174,15 +173,15 @@
 
     snake.unshift(head);
 
-    if(head.x === food.x && head.y === food.y){
+    if (head.x === food.x && head.y === food.y) {
       alert('잡았다!');
-      playEatSound(); // 먹이 먹을 때마다 효과음 재생
-      const centerX = Math.floor(w/2);
-      const centerY = Math.floor(h/2);
-      for(let i=0; i<snake.length; i++){
-        snake[i] = {x:centerX, y:centerY};
+      playEatSound();
+      const centerX = Math.floor(w / 2);
+      const centerY = Math.floor(h / 2);
+      for (let i = 0; i < snake.length; i++) {
+        snake[i] = { x: centerX, y: centerY };
       }
-      food = {x: rand(0,w-1), y: rand(0,h-1)};
+      food = { x: rand(0, w - 1), y: rand(0, h - 1) };
       currentDir = null;
       mobileDir = null;
       isKeyPressed = false;
@@ -191,39 +190,38 @@
     }
   }
 
-  let foodDir = ['left','right','up','down'][rand(0,3)];
-  function moveFood(){
-    if(Math.random()<0.25) foodDir = ['left','right','up','down'][rand(0,3)];
+  let foodDir = ['left', 'right', 'up', 'down'][rand(0, 3)];
+  function moveFood() {
+    if (Math.random() < 0.25) foodDir = ['left', 'right', 'up', 'down'][rand(0, 3)];
     let nx = food.x, ny = food.y;
-    if(foodDir==='left') nx--;
-    else if(foodDir==='right') nx++;
-    else if(foodDir==='up') ny--;
-    else if(foodDir==='down') ny++;
+    if (foodDir === 'left') nx--;
+    else if (foodDir === 'right') nx++;
+    else if (foodDir === 'up') ny--;
+    else if (foodDir === 'down') ny++;
 
-    if(nx<0 || nx>=w) foodDir = foodDir==='left' ? 'right' : 'left';
+    if (nx < 0 || nx >= w) foodDir = foodDir === 'left' ? 'right' : 'left';
     else food.x = nx;
-    if(ny<0 || ny>=h) foodDir = foodDir==='up' ? 'down' : 'up';
+    if (ny < 0 || ny >= h) foodDir = foodDir === 'up' ? 'down' : 'up';
     else food.y = ny;
   }
 
-  function draw(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(foodImg, food.x*block, food.y*block, block, block);
-    snake.forEach(s=> ctx.drawImage(snakeImg, s.x*block, s.y*block, block, block));
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(foodImg, food.x * block, food.y * block, block, block);
+    snake.forEach(s => ctx.drawImage(snakeImg, s.x * block, s.y * block, block, block));
   }
 
-  if(!isMobile){
-    window.addEventListener('keydown', e=>{
+  if (!isMobile) {
+    window.addEventListener('keydown', e => {
       let newDir = null;
-      if(e.key === 'ArrowLeft' && currentDir !== 'right') newDir = 'left';
-      else if(e.key === 'ArrowRight' && currentDir !== 'left') newDir = 'right';
-      else if(e.key === 'ArrowUp' && currentDir !== 'down') newDir = 'up';
-      else if(e.key === 'ArrowDown' && currentDir !== 'up') newDir = 'down';
+      if (e.key === 'ArrowLeft' && currentDir !== 'right') newDir = 'left';
+      else if (e.key === 'ArrowRight' && currentDir !== 'left') newDir = 'right';
+      else if (e.key === 'ArrowUp' && currentDir !== 'down') newDir = 'up';
+      else if (e.key === 'ArrowDown' && currentDir !== 'up') newDir = 'down';
 
-      if(newDir){
-        if(!isKeyPressed){
-          // 벽 충돌 후 첫 방향키 누르면 음소거 해제, 배경음 재생 가능
-          if(hasCollided){
+      if (newDir) {
+        if (!isKeyPressed) {
+          if (hasCollided) {
             bgSound.muted = false;
             hasCollided = false;
           }
@@ -234,23 +232,23 @@
       }
     });
 
-    window.addEventListener('keyup', e=>{
-      const keys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'];
-      if(keys.includes(e.key)){
+    window.addEventListener('keyup', e => {
+      const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+      if (keys.includes(e.key)) {
         currentDir = null;
         isKeyPressed = false;
       }
     });
   }
 
-  if(isMobile){
-    ['left','right','up','down'].forEach(dir=>{
-      const btn = document.getElementById(dir+'Btn');
-      btn.addEventListener('touchstart', e=>{
+  if (isMobile) {
+    ['left', 'right', 'up', 'down'].forEach(dir => {
+      const btn = document.getElementById(dir + 'Btn');
+      btn.addEventListener('touchstart', e => {
         e.preventDefault();
-        if(mobileDir !== dir){
-          if(!isKeyPressed){
-            if(hasCollided){
+        if (mobileDir !== dir) {
+          if (!isKeyPressed) {
+            if (hasCollided) {
               bgSound.muted = false;
               hasCollided = false;
             }
@@ -260,7 +258,7 @@
           mobileDir = dir;
         }
       });
-      btn.addEventListener('touchend', e=>{
+      btn.addEventListener('touchend', e => {
         e.preventDefault();
         mobileDir = null;
         isKeyPressed = false;
@@ -269,17 +267,16 @@
   }
 
   let frame = 0;
-  function loop(){
+  function loop() {
     frame++;
-    if(frame % 20 === 0) moveFood();
-    if(frame % 10 === 0 && getDir()) moveSnake();
+    if (frame % 20 === 0) moveFood();
+    if (frame % 10 === 0 && getDir()) moveSnake();
     draw();
     requestAnimationFrame(loop);
   }
 
   init();
   loop();
-
 })();
 </script>
 
