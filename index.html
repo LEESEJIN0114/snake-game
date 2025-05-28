@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Snake Game with Video Background in Box</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      background: black; /* 박스 밖 검은 배경 */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+    /* 게임 박스 */
+    #gameContainer {
+      position: relative;
+      width: 400px;
+      height: 400px;
+      background: black; /* 박스 안 기본 배경 (안보이겠지만) */
+      overflow: hidden;
+      /* 테두리 없음 */
+      z-index: 2;
+    }
+    /* 박스 안 배경 영상 */
+    #bgVideo {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 0;
+      pointer-events: none;
+    }
+    /* 게임 캔버스: 투명 배경 */
+    #game {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      z-index: 1;
+      display: block;
+    }
+    /* 터치 버튼 */
+    .controls {
+      position: fixed;
+      bottom: 10px;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      z-index: 3;
+    }
+    .btn {
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 2px solid white;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- 게임 박스 -->
+  <div id="gameContainer">
+    <!-- 박스 안 배경 영상 -->
+    <video id="bgVideo" autoplay muted loop playsinline>
+      <source src="background.mp4" type="video/mp4" />
+      영상 지원 안됨
+    </video>
+    <!-- 게임 캔버스 -->
+    <canvas id="game" width="400" height="400"></canvas>
+  </div>
+
+  <!-- 조작 버튼 -->
+  <div class="controls">
+    <button class="btn" id="left">←</button>
+    <button class="btn" id="up">↑</button>
+    <button class="btn" id="down">↓</button>
+    <button class="btn" id="right">→</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const box = 20;
+    const width = canvas.width;
+    const height = canvas.height;
+
+    let snake = [{ x: 200, y: 200 }];
+    let food = { x: 100, y: 100 };
+    let foodDir = 1;
+    let foodMoveAccumulator = 0;
+    let foodSpeed = 120;
+    let snakeSpeed = foodSpeed / 2;
+    let moveTimer = 0;
+    let snakeMoveRemaining = 0;
+
+    let dx = 0, dy = 0, nextDx = 0, nextDy = 0;
+    let running = true;
+    let lastTime = 0;
+
+    const snakeImg = new Image();
+    snakeImg.src = "snake.png";
+
+    const foodImg = new Image();
+    foodImg.src = "food.png";
+
+    const bgm = new Audio("bgm.mp3");
+    bgm.loop = true;
+    bgm.volume = 0.5;
+
+    function playBackgroundMusic() {
+      if (bgm.paused) {
+        bgm.play().catch(() => {});
+      }
+    }
+
+    document.addEventListener("keydown", e => {
+      switch (e.keyCode) {
+        case 37: if (dx !== box) { nextDx = -box; nextDy = 0; } break;
+        case 38: if (dy !== box) { nextDx = 0; nextDy = -box; } break;
+        case 39: if (dx !== -box) { nextDx = box; nextDy = 0; } break;
+        case 40: if (dy !== -box) { nextDx = 0; nextDy = box; } break;
+      }
+    });
+
+    const btnMap = {
+      left: 37,
+      up: 38,
+      down: 40,
+      right: 39
+    };
+    Object.entries(btnMap).forEach(([id, keyCode]) => {
+      document.getElementById(id).addEventListener("click", () => {
+        const e = new KeyboardEvent("keydown", {keyCode: keyCode});
+        document.dispatchEvent(e);
+      });
+    });
+
+    function placeFood() {
+      let valid = false;
+      while (!valid) {
+        food.x = Math.floor(Math.random() * (width / box)) * box;
+        food.y = Math.floor(Math.random() * (height / box)) * box;
+        valid = !snake.some(part => part.x === food.x && part.y === food.y);
+      }
+    }
+
+    function moveSnakeOnce() {
+      if (nextDx === 0 && nextDy === 0) {
+        dx = 0;
+        dy = 0;
+        return;
+      }
+      dx = nextDx;
+      dy = nextDy;
+
+      const newHead = {
+        x: snake[0].x + dx,
+        y: snake[0].y + dy
+      };
+
+      if (newHead.x < 0 || newHead.x >= width || newHead.y < 0 || newHead.y >= height) {
+        alert("벽에 부딪혀 게임 오버!");
+        running = false;
+        return;
+      }
+
+      if (snake.some(part => part.x === newHead.x && part.y === newHead.y)) {
+        alert("자기 몸에 부딪혀 게임 오버!");
+        running = false;
+        return;
+      }
+
+      snake.unshift(newHead);
+
+      if (snakeMoveRemaining > 0) {
+        snakeMoveRemaining--;
+      } else {
+        snake.pop();
+      }
+
+      if (newHead.x === food.x && newHead.y === food.y) {
+        alert("잡았다!");
+        playBackgroundMusic();
+
+        const newLength = snake.length + 1;
+        snakeMoveRemaining = newLength - 1;
+        dx = dy = nextDx = nextDy = 0;
+
+        placeFood();
+        foodSpeed = Math.max(foodSpeed / 1.2, 60);
+        snakeSpeed = foodSpeed / 2;
+      }
+    }
+
+    function moveFood(deltaTime) {
+      foodMoveAccumulator += deltaTime;
+      if (foodMoveAccumulator >= foodSpeed) {
+        food.x += box * foodDir;
+        if (food.x <= 0 || food.x >= width - box) {
+          foodDir *= -1;
+        }
+        foodMoveAccumulator = 0;
+      }
+    }
+
+    function gameLoop(timestamp) {
+      if (!running) return;
+      if (!lastTime) lastTime = timestamp;
+      const deltaTime = timestamp - lastTime;
+      lastTime = timestamp;
+
+      moveTimer += deltaTime;
+      if (moveTimer >= snakeSpeed) {
+        moveSnakeOnce();
+        moveTimer = 0;
+      }
+
+      moveFood(deltaTime);
+
+      ctx.clearRect(0, 0, width, height);
+      // 배경 영상이 있으니 캔버스 배경은 투명
+
+      // 먹이 그리기
+      ctx.drawImage(foodImg, food.x, food.y, box, box);
+      // 뱀 그리기
+      snake.forEach(part => {
+        ctx.drawImage(snakeImg, part.x, part.y, box, box);
+      });
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    let imagesLoaded = 0;
+    [snakeImg, foodImg].forEach(img => {
+      img.onload = () => {
+        imagesLoaded++;
+        if (imagesLoaded === 2) {
+          placeFood();
+          requestAnimationFrame(gameLoop);
+        }
+      };
+      img.onerror = () => {
+        alert("이미지 로드 실패. 이미지 경로 확인하세요.");
+      };
+    });
+  </script>
+</body>
+</html>
+
+
+
+
